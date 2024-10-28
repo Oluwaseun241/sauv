@@ -1,9 +1,22 @@
 package internal
 
-func connect() {
-	// connect to the database (postgres,mongodb,sqlite)
+import "sauv/internal/db"
+
+type Database interface {
+	Connect(dbUrl string) error
+	Backup(dbUrl, destination string) error
+	QueryBackup() error
 }
 
-func query() {
-	// query the database to get backup
+func GetDatabase(dbType string) Database {
+	switch dbType {
+	case "postgres":
+		return &db.PostgresDB{}
+	case "mongodb":
+		return db.MongoDB{}
+	case "sqlite":
+		return db.SQLiteDB{}
+	default:
+		return nil
+	}
 }
