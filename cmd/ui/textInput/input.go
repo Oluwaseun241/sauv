@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,39 +17,39 @@ var (
 )
 
 type model struct {
-	focusIndex int
-	inputs     []textinput.Model
-	cursorMode cursor.Mode
-	submitted  bool
-	values     map[string]string
+	inputs    []textinput.Model
+	focusIdx  int
+	submitted bool
+	err       error
+	values    map[string]string
 }
 
 func initialModel() model {
-	m := model{
-		inputs: make([]textinput.Model, 3),
-		values: make(map[string]string),
-	}
+	labels := []string{"Old database URL", "New database URL", "Backup Destination"}
+	inputs := make([]textinput.Model, 3)
 
-	var t textinput.Model
-	for i := range m.inputs {
-		t = textinput.New()
-		t.Cursor.Style = focusedStyle
+	for i := 0; i < 3; i++ {
+		t := textinput.New()
+		t.Placeholder = labels[i]
+		t.CharLimit = 150
+		t.Width = 50
+		t.Prompt = "> "
 
-		switch i {
-		case 0:
-			t.Placeholder = "Old database url"
+		if i == 0 {
 			t.Focus()
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
-		case 1:
-			t.Placeholder = "New database url"
-		case 2:
-			t.Placeholder = "Backup Destination"
 		}
-		m.inputs[i] = t
+
+		inputs[i] = t
 	}
 
-	return m
+	return model{
+		inputs:    inputs,
+		focusIdx:  0,
+		submitted: false,
+		values:    make(map[string]string),
+	}
 }
 
 func (m model) Init() tea.Cmd {
@@ -67,29 +66,40 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab", "shift+tab", "enter", "up", "down":
 			s := msg.String()
 
-			if s == "enter" && m.focusIndex == len(m.inputs) {
+			if s == "enter" && m.focusIdx == len(m.inputs) {
+				if err := m.validateInputs(); err != nil {
+					m.err = err
+					return m, nil
+				}
 				m.submitted = true
-				for _, input := range m.inputs {
-					m.values[input.Placeholder] = input.Value()
+				for i, input := range m.inputs {
+					switch i {
+					case 0:
+						m.values["Old database URL"] = input.Value()
+					case 1:
+						m.values["New database URL"] = input.Value()
+					case 2:
+						m.values["Backup Destination"] = input.Value()
+					}
 				}
 				return m, tea.Quit
 			}
 
 			if s == "up" || s == "shift+tab" {
-				m.focusIndex--
+				m.focusIdx--
 			} else {
-				m.focusIndex++
+				m.focusIdx++
 			}
 
-			if m.focusIndex > len(m.inputs) {
-				m.focusIndex = 0
-			} else if m.focusIndex < 0 {
-				m.focusIndex = len(m.inputs)
+			if m.focusIdx > len(m.inputs) {
+				m.focusIdx = 0
+			} else if m.focusIdx < 0 {
+				m.focusIdx = len(m.inputs)
 			}
 
 			cmds := make([]tea.Cmd, len(m.inputs))
 			for i := 0; i <= len(m.inputs)-1; i++ {
-				if i == m.focusIndex {
+				if i == m.focusIdx {
 					cmds[i] = m.inputs[i].Focus()
 					m.inputs[i].PromptStyle = focusedStyle
 					m.inputs[i].TextStyle = focusedStyle
@@ -108,27 +118,32 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
-	cmds := make([]tea.Cmd, len(m.inputs))
-
-	for i := range m.inputs {
-		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
+	var cmd tea.Cmd
+	// Only update the focused input
+	if m.focusIdx < len(m.inputs) {
+		m.inputs[m.focusIdx], cmd = m.inputs[m.focusIdx].Update(msg)
 	}
-
-	return tea.Batch(cmds...)
+	return cmd
 }
 
 func (m model) View() string {
 	var b strings.Builder
 
-	for i := range m.inputs {
+	b.WriteString("Enter database details\n\n")
+
+	for i := 0; i < len(m.inputs); i++ {
 		b.WriteString(m.inputs[i].View())
 		if i < len(m.inputs)-1 {
 			b.WriteRune('\n')
 		}
 	}
 
+	if m.err != nil {
+		b.WriteString("\n\n" + focusedStyle.Render(m.err.Error()))
+	}
+
 	button := blurredButton
-	if m.focusIndex == len(m.inputs) {
+	if m.focusIdx == len(m.inputs) {
 		button = focusedButton
 	}
 	b.WriteString("\n\n" + button)
@@ -146,4 +161,28 @@ func GetInputs() (map[string]string, error) {
 		return m.values, nil
 	}
 	return nil, fmt.Errorf("input submission canceled")
+}
+
+func (m model) validateInputs() error {
+	oldDB := strings.TrimSpace(m.inputs[0].Value())
+	newDB := strings.TrimSpace(m.inputs[1].Value())
+	dest := strings.TrimSpace(m.inputs[2].Value())
+
+	if oldDB == "" {
+		return fmt.Errorf("old database URL is required")
+	}
+
+	if !strings.HasPrefix(oldDB, "postgres://") {
+		return fmt.Errorf("invalid old database URL format")
+	}
+
+	if newDB != "" && !strings.HasPrefix(newDB, "postgres://") {
+		return fmt.Errorf("invalid new database URL format")
+	}
+
+	if dest == "" {
+		return fmt.Errorf("backup destination is required")
+	}
+
+	return nil
 }

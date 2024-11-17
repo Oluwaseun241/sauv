@@ -2,47 +2,45 @@ package multiSelect
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-var docStyle = lipgloss.NewStyle().Margin(1, 2)
-
-type item struct {
-	title, desc string
+type Item struct {
+	title string
+	desc  string
 }
 
-func (i item) Title() string       { return i.title }
-func (i item) Description() string { return i.desc }
-func (i item) FilterValue() string { return i.title }
+func (i Item) Title() string       { return i.title }
+func (i Item) Description() string { return i.desc }
+func (i Item) FilterValue() string { return i.title }
 
-type model struct {
+type Model struct {
 	list     list.Model
-	selected string
+	choice   string
+	quitting bool
 }
 
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
+		switch msg.String() {
+		case "ctrl+c", "q":
+			m.quitting = true
 			return m, tea.Quit
-		} else if msg.String() == "enter" {
-			i, ok := m.list.SelectedItem().(item)
+		case "enter":
+			i, ok := m.list.SelectedItem().(Item)
 			if ok {
-				m.selected = i.title
+				m.choice = i.Title()
 				return m, tea.Quit
 			}
 		}
-	case tea.WindowSizeMsg:
-		h, v := docStyle.GetFrameSize()
-		m.list.SetSize(msg.Width-h, msg.Height-v)
 	}
 
 	var cmd tea.Cmd
@@ -50,24 +48,45 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m model) View() string {
-	return docStyle.Render(m.list.View())
+func (m Model) View() string {
+	if m.quitting {
+		return ""
+	}
+	return "\n" + m.list.View()
 }
 
 func RunSelection() string {
-	itemss := []list.Item{
-		item{title: "Backup", desc: "Perform a database backup"},
-		item{title: "Backup and Migrate", desc: "Backup the database and migrate to a new database"},
+	items := []list.Item{
+		Item{title: "Perform Backup", desc: "Backup your database"},
+		Item{title: "Perform Backup and Restore", desc: "Backup and restore to a new database"},
 	}
 
-	m := model{list: list.New(itemss, list.NewDefaultDelegate(), 0, 0)}
-	m.list.Title = "Sauv"
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(lipgloss.Color("#7D56F4"))
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(lipgloss.Color("#7D56F4"))
 
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	l := list.New(items, delegate, 35, 14)
+	l.Title = "Select Operation"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FAFAFA")).
+		Background(lipgloss.Color("#7D56F4")).
+		Padding(0, 1)
 
-	if _, err := p.Run(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
+	m := Model{list: l}
+	p := tea.NewProgram(m)
+
+	finalModel, err := p.Run()
+	if err != nil {
+		fmt.Printf("Error running selection menu: %v\n", err)
+		return ""
 	}
-	return m.selected
+
+	if finalM, ok := finalModel.(Model); ok && finalM.choice != "" {
+		return finalM.choice
+	}
+
+	return ""
 }
