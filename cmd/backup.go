@@ -22,7 +22,9 @@ var initCmd = &cobra.Command{
 			return
 		}
 
-		values, err := textInput.GetInputs()
+		showAll := choice == "Perform Backup and Migrate"
+
+		values, err := textInput.GetInputs(showAll)
 		if err != nil {
 			fmt.Printf("Error collecting inputs: %v\n", err)
 			return
@@ -33,9 +35,10 @@ var initCmd = &cobra.Command{
 		backupDestination := strings.TrimSpace(values["Backup Destination"])
 
 		switch choice {
-		case "Backup":
+		case "Perform Backup":
 			if oldDBUrl == "" {
 				fmt.Println("You must provide database URL")
+				fmt.Println(oldDBUrl)
 				return
 			}
 			if backupDestination == "" {
@@ -50,7 +53,7 @@ var initCmd = &cobra.Command{
 			}
 			fmt.Println("Backup completed successfully!")
 
-		case "Backup and Migrate":
+		case "Perform Backup and Migrate":
 			if oldDBUrl == "" || newDBUrl == "" {
 				fmt.Println("You must provide both old and new database URLs")
 				return
@@ -72,7 +75,7 @@ var initCmd = &cobra.Command{
 }
 
 func PerformBackup(dbURL, destination string) error {
-	if !strings.HasPrefix(dbURL, "postgres://") {
+	if !strings.HasPrefix(dbURL, "postgresql://") {
 		return fmt.Errorf("invalid database URL format. Must start with 'postgres://'")
 	}
 

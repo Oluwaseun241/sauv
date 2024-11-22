@@ -22,9 +22,10 @@ type model struct {
 	submitted bool
 	err       error
 	values    map[string]string
+	showAll   bool
 }
 
-func initialModel() model {
+func initialModel(showAll bool) model {
 	labels := []string{"Old database URL", "New database URL", "Backup Destination"}
 	inputs := make([]textinput.Model, 3)
 
@@ -49,6 +50,7 @@ func initialModel() model {
 		focusIdx:  0,
 		submitted: false,
 		values:    make(map[string]string),
+		showAll:   showAll,
 	}
 }
 
@@ -131,9 +133,18 @@ func (m model) View() string {
 
 	b.WriteString("Enter database details\n\n")
 
-	for i := 0; i < len(m.inputs); i++ {
+	maxInputs := 3
+	if m.showAll {
+		maxInputs = 3
+	}
+
+	for i := 0; i < maxInputs; i++ {
+		if !m.showAll && i == 1 {
+			continue
+		}
+
 		b.WriteString(m.inputs[i].View())
-		if i < len(m.inputs)-1 {
+		if i < maxInputs-1 {
 			b.WriteRune('\n')
 		}
 	}
@@ -150,8 +161,8 @@ func (m model) View() string {
 	return b.String()
 }
 
-func GetInputs() (map[string]string, error) {
-	p := tea.NewProgram(initialModel())
+func GetInputs(showAll bool) (map[string]string, error) {
+	p := tea.NewProgram(initialModel(showAll))
 	m, err := p.Run()
 	if err != nil {
 		return nil, err
@@ -172,7 +183,7 @@ func (m model) validateInputs() error {
 		return fmt.Errorf("old database URL is required")
 	}
 
-	if !strings.HasPrefix(oldDB, "postgres://") {
+	if !strings.HasPrefix(oldDB, "postgresql://") {
 		return fmt.Errorf("invalid old database URL format")
 	}
 

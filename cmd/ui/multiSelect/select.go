@@ -58,7 +58,7 @@ func (m Model) View() string {
 func RunSelection() string {
 	items := []list.Item{
 		Item{title: "Perform Backup", desc: "Backup your database"},
-		Item{title: "Perform Backup and Restore", desc: "Backup and restore to a new database"},
+		Item{title: "Perform Backup and Migrate", desc: "Backup and migrate to a new database"},
 	}
 
 	delegate := list.NewDefaultDelegate()
