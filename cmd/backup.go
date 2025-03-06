@@ -69,7 +69,8 @@ var initCmd = &cobra.Command{
 				return
 			}
 			// TODO: Implement migration
-			fmt.Println("Backup completed successfully! Migration not yet implemented.")
+			fmt.Println("Backup completed successfully! Migration in progress")
+			err = PerformMigration(oldDBUrl, newDBUrl)
 		}
 	},
 }
@@ -84,6 +85,7 @@ func PerformBackup(dbURL, destination string) error {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
+	// Get db type
 	dbType := "postgres"
 
 	db, err := internal.GetDatabase(dbType)
